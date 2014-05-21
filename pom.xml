@@ -3,7 +3,7 @@
 
 	<artifactId>langdetect</artifactId>
 	<groupId>com.cybozu.labs</groupId>
-	<version>2014.03.03</version>
+	<version>2014.05.21-SNAPSHOT</version>
 
 	<dependencies>
 		<dependency>

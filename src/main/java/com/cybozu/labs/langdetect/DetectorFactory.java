@@ -2,7 +2,9 @@ package com.cybozu.labs.langdetect;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +13,7 @@ import java.util.List;
 import net.arnx.jsonic.JSON;
 import net.arnx.jsonic.JSONException;
 
+import com.cybozu.labs.langdetect.profiles.Profile;
 import com.cybozu.labs.langdetect.util.LangProfile;
 
 
@@ -44,12 +47,12 @@ public class DetectorFactory {
 		langlist = new ArrayList<String>();
 	}
 
-	static private DetectorFactory instance_ = new DetectorFactory();
+	private static DetectorFactory instance = new DetectorFactory();
 
 
 	/**
 	 * Load profiles from specified directory. This method must be called once before language detection.
-	 * 
+	 *
 	 * @param profileDirectory profile directory path
 	 * @throws LangDetectException Can't open profiles(error code = {@link ErrorCode#FileLoadError}) or profile's format
 	 *         is wrong (error code = {@link ErrorCode#FormatError})
@@ -59,9 +62,33 @@ public class DetectorFactory {
 	}
 
 
+	public static void loadProfile(Profile profile) throws LangDetectException {
+		loadProfile(profile.getProfiles());
+	}
+
+
+	public static void loadProfile(InputStream[] streams) throws LangDetectException {
+		//int langsize = listFiles.length;
+		int index = 0;
+		for (InputStream stream: streams) {
+			try (InputStream is = stream) {
+				LangProfile profile = JSON.decode(is, LangProfile.class);
+				addProfile(profile, index, streams.length);
+				++index;
+			}
+			catch (JSONException e) {
+				throw new LangDetectException(ErrorCode.FormatError, "profile format error in '" + stream + "'");
+			}
+			catch (IOException e) {
+				throw new LangDetectException(ErrorCode.FileLoadError, "can't open stream '" + stream + "'");
+			}
+		}
+	}
+
+
 	/**
 	 * Load profiles from specified directory. This method must be called once before language detection.
-	 * 
+	 *
 	 * @param profileDirectory profile directory path
 	 * @throws LangDetectException Can't open profiles(error code = {@link ErrorCode#FileLoadError}) or profile's format
 	 *         is wrong (error code = {@link ErrorCode#FormatError})
@@ -72,40 +99,24 @@ public class DetectorFactory {
 			throw new LangDetectException(ErrorCode.NeedLoadProfileError, "Not found profile: " + profileDirectory);
 		}
 
-		int langsize = listFiles.length, index = 0;
+		List<InputStream> streams = new ArrayList<>();
 		for (File file: listFiles) {
-			if (file.getName().startsWith(".") || !file.isFile()) {
-				continue;
-			}
-			FileInputStream is = null;
-			try {
-				is = new FileInputStream(file);
-				LangProfile profile = JSON.decode(is, LangProfile.class);
-				addProfile(profile, index, langsize);
-				++index;
-			}
-			catch (JSONException e) {
-				throw new LangDetectException(ErrorCode.FormatError, "profile format error in '" + file.getName() + "'");
-			}
-			catch (IOException e) {
-				throw new LangDetectException(ErrorCode.FileLoadError, "can't open '" + file.getName() + "'");
-			}
-			finally {
+			if (!file.getName().startsWith(".") && file.isFile()) {
 				try {
-					if (is != null) {
-						is.close();
-					}
+					streams.add(new FileInputStream(file));
 				}
-				catch (IOException e) {
+				catch (FileNotFoundException ex) {
+					throw new LangDetectException(ErrorCode.FormatError, "file not found: '" + file.getName() + "'");
 				}
 			}
 		}
+		loadProfile(streams.toArray(new InputStream[] {}));
 	}
 
 
 	/**
 	 * Load profiles from specified directory. This method must be called once before language detection.
-	 * 
+	 *
 	 * @param profileDirectory profile directory path
 	 * @throws LangDetectException Can't open profiles(error code = {@link ErrorCode#FileLoadError}) or profile's format
 	 *         is wrong (error code = {@link ErrorCode#FormatError})
@@ -138,18 +149,18 @@ public class DetectorFactory {
 	 */
 	static/* package scope */void addProfile(LangProfile profile, int index, int langsize) throws LangDetectException {
 		String lang = profile.name;
-		if (instance_.langlist.contains(lang)) {
+		if (instance.langlist.contains(lang)) {
 			throw new LangDetectException(ErrorCode.DuplicateLangError, "duplicate the same language profile");
 		}
-		instance_.langlist.add(lang);
+		instance.langlist.add(lang);
 		for (String word: profile.freq.keySet()) {
-			if (!instance_.wordLangProbMap.containsKey(word)) {
-				instance_.wordLangProbMap.put(word, new double[langsize]);
+			if (!instance.wordLangProbMap.containsKey(word)) {
+				instance.wordLangProbMap.put(word, new double[langsize]);
 			}
 			int length = word.length();
 			if (length >= 1 && length <= 3) {
 				double prob = profile.freq.get(word).doubleValue() / profile.n_words[length - 1];
-				instance_.wordLangProbMap.get(word)[index] = prob;
+				instance.wordLangProbMap.get(word)[index] = prob;
 			}
 		}
 	}
@@ -159,14 +170,14 @@ public class DetectorFactory {
 	 * Clear loaded language profiles (reinitialization to be available)
 	 */
 	static public void clear() {
-		instance_.langlist.clear();
-		instance_.wordLangProbMap.clear();
+		instance.langlist.clear();
+		instance.wordLangProbMap.clear();
 	}
 
 
 	/**
 	 * Construct Detector instance
-	 * 
+	 *
 	 * @return Detector instance
 	 * @throws LangDetectException
 	 */
@@ -177,7 +188,7 @@ public class DetectorFactory {
 
 	/**
 	 * Construct Detector instance with smoothing parameter
-	 * 
+	 *
 	 * @param alpha smoothing parameter (default value = 0.5)
 	 * @return Detector instance
 	 * @throws LangDetectException
@@ -190,20 +201,20 @@ public class DetectorFactory {
 
 
 	static private Detector createDetector() throws LangDetectException {
-		if (instance_.langlist.size() == 0) {
+		if (instance.langlist.size() == 0) {
 			throw new LangDetectException(ErrorCode.NeedLoadProfileError, "need to load profiles");
 		}
-		Detector detector = new Detector(instance_);
+		Detector detector = new Detector(instance);
 		return detector;
 	}
 
 
 	public static void setSeed(long seed) {
-		instance_.seed = seed;
+		instance.seed = seed;
 	}
 
 
 	public static final List<String> getLangList() {
-		return Collections.unmodifiableList(instance_.langlist);
+		return Collections.unmodifiableList(instance.langlist);
 	}
 }

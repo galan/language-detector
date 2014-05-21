@@ -4,7 +4,7 @@ import java.io.InputStream;
 
 
 /**
- * daniel should have written a comment here.
+ * Bundle profiles in jars
  *
  * @author daniel
  */

@@ -6,7 +6,7 @@ import java.util.List;
 
 
 /**
- * daniel should have written a comment here.
+ * Abstract Profile that takes names and returns streams for them
  *
  * @author daniel
  */

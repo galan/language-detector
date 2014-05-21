@@ -4,7 +4,7 @@ import com.cybozu.labs.langdetect.profiles.AbstractProfile;
 
 
 /**
- * daniel should have written a comment here.
+ * Profiles from t he profiles.sm directory
  *
  * @author daniel
  */

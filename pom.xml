@@ -3,7 +3,7 @@
 
 	<artifactId>langdetect</artifactId>
 	<groupId>com.cybozu.labs</groupId>
-	<version>2014.05.21-SNAPSHOT</version>
+	<version>2014.05.22-SNAPSHOT</version>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
